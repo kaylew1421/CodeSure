@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Project Story: CodeSure – Chrome Extension for CPT Validation  
 
 ## Inspiration  
