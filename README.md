@@ -4,7 +4,9 @@
 
 A Chrome extension leveraging Chrome's Built-in AI APIs (Gemini Nano) to validate medical codes, compare payer rules, and generate prior authorization notes—entirely on-device for complete privacy.
 
-**[Demo Video](YOUR_VIDEO_LINK_HERE)** | **[GitHub Repository](https://github.com/yourusername/codesure)**
+**Demo Video:** **TBD** 
+
+**GitHub Repository:** **https://github.com/kaylew1421/CodeSure**
 
 ---
 
