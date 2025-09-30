@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CodeSure – CPT Code Validator",
   "version": "0.2.2",
-  "description": "Validate mock 5-digit codes, compare payer rules, suggest codes, summarize policies, and build PA notes on-device.",
+  "description": "Validate mock 5-digit codes, compare payer rules, suggest codes with AI, summarize policies, and build PA notes using Chrome's built-in AI APIs.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -16,8 +16,18 @@
       "128": "icons/icon128.png"
     }
   },
-  "permissions": ["activeTab", "scripting"],
+  "permissions": [
+    "activeTab", 
+    "scripting", 
+    "storage"
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/suggest-worker.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

@@ -1,5 +1,5 @@
 // ----------------------------
-// CodeSure - popup script.js
+// CodeSure - popup script.js (corrected & optimized)
 // ----------------------------
 
 let cptData = [];
@@ -8,11 +8,13 @@ let dataLoaded = false;
 
 const CODE_RE = /^\d{5}$/;
 // generous timeouts for cold-start model downloads
-const PROMPT_AI_DEADLINE_MS = 20000;
-const SUMMARIZE_TIMEOUT_MS   = 45000;
+const PROMPT_AI_DEADLINE_MS = 25000; // was 20000
+const SUMMARIZE_TIMEOUT_MS   = 90000; // was 45000
+const SUMMARIZE_FAST_THRESHOLD = 10000; // treat pages under 10k chars as fast path
 const DIAG_TIMEOUT           = 30000;
 
 let suggestWorker = null;
+let summarizerSingleton = null; // prewarmed, reused summarizer instance
 
 // ---------- helpers ----------
 function setHTML(el, html) { if (el) el.innerHTML = html; }
@@ -41,7 +43,7 @@ function sanitizeAI(text) {
     /\b(already\s+grammatically\s+correct(?:\s+and)?\s+concise)\b/gi,
     /\b(no\s+edits\s+required)\b/gi,
     /\b(text\s+is\s+already\s+clear\s+and\s+concise)\b/gi,
-    /\(i['’]?(ve| have)\s+(just\s+)?(added|made|fixed|corrected|updated)[^)]+?\)/gi,
+    /\(i['']?(ve| have)\s+(just\s+)?(added|made|fixed|corrected|updated)[^)]+?\)/gi,
     /\(edited\s+for\s+clarity[^)]*\)/gi,
   ];
   for (const re of hard) out = out.replace(re, '');
@@ -138,11 +140,22 @@ async function getActiveTab() {
   if (!tab?.id) throw new Error('No active tab');
   return tab;
 }
+async function getActiveTabUrl() {
+  const tab = await getActiveTab();
+  return tab.url || 'about:blank';
+}
+
+// UPDATED: prefer selection -> main -> body; trim & normalize
 async function getActiveTabText() {
   const tab = await getActiveTab();
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: () => document.body.innerText.slice(0, 60000)
+    func: () => {
+      const mainish = document.querySelector('main, article, .article, .post, .entry-content');
+      let text = mainish ? mainish.innerText : document.body.innerText;
+      text = text.replace(/\s+/g, ' ').trim();
+      return text.slice(0, 600); // Reduced from 4000 → much faster
+    }
   });
   return result || '';
 }
@@ -153,6 +166,65 @@ function chunkText(t, size = 6000) {
   for (let i = 0; i < t.length; i += size) out.push(t.slice(i, i + size)); // fixed slicing
   return out;
 }
+
+// NEW: chunking for Summarizer path too
+function chunkTextByChars(t, size = 7000, maxChunks = 4) {
+  const out = [];
+  for (let i = 0; i < t.length && out.length < maxChunks; i += size) {
+    out.push(t.slice(i, i + size));
+  }
+  return out;
+}
+
+async function summarizeWithSummarizerChunked(summarizer, text, lang, statusEl) {
+  const chunks = chunkTextByChars(text, 7000, 4);
+  if (chunks.length === 1) {
+    return await withTimeout(
+      summarizer.summarize(chunks[0], {
+        context: 'Summarize payer coverage criteria and documentation requirements. Use bullet points.',
+        outputLanguage: lang
+      }),
+      Math.max(45000, SUMMARIZE_TIMEOUT_MS),
+      'summarize timeout'
+    );
+  }
+
+  // Run two chunks at a time for speed
+  const partials = new Array(chunks.length);
+  let idx = 0;
+  const worker = async () => {
+    const myIndex = idx++;
+    if (myIndex >= chunks.length) return;
+    statusEl && (statusEl.textContent = `Summarizing chunk ${myIndex + 1}/${chunks.length}…`);
+    try {
+      partials[myIndex] = await withTimeout(
+        summarizer.summarize(chunks[myIndex], {
+          context: `Summarize this section as tight bullet points in ${lang.toUpperCase()}.`,
+          outputLanguage: lang
+        }),
+        30000,
+        `chunk ${myIndex + 1} timeout`
+      );
+    } catch {
+      partials[myIndex] = '';
+    }
+    await worker();
+  };
+  await Promise.all([worker(), worker()]); // 2-way concurrency
+
+  // Merge pass is short
+  statusEl && (statusEl.textContent = 'Merging…');
+  const mergedInput = partials.filter(Boolean).join('\n\n');
+  return await withTimeout(
+    summarizer.summarize(mergedInput, {
+      context: `Merge & deduplicate into one concise list (~8 bullets) in ${lang.toUpperCase()}, focused on coverage criteria & documentation.`,
+      outputLanguage: lang
+    }),
+    20000,
+    'merge timeout'
+  );
+}
+
 async function summarizeWithLanguageModel(text, lang) {
   if (!('LanguageModel' in self)) throw new Error('Prompt API unavailable');
   const session = await withTimeout(LanguageModel.create(LM_OPTS(lang)), PROMPT_AI_DEADLINE_MS, 'create timeout');
@@ -710,8 +782,8 @@ async function runSuggest() {
   } catch (err) {
     out.textContent = `⚠️ ${await tText('Error:', lang, tx)} ${err.message || String(err)}`;
   } finally {
-    const btn = document.getElementById("aiExtractBtn");
-    if (btn) btn.disabled = false;
+    const btn2 = document.getElementById("aiExtractBtn");
+    if (btn2) btn2.disabled = false;
   }
 }
 
@@ -772,6 +844,36 @@ async function generateCoverageSnapshot() {
 }
 
 // ---------- Summarizer tab ----------
+function simpleHash(s) {
+  let h = 0; for (let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i))|0; } return (h>>>0).toString(36);
+}
+
+// CORRECTED: Single getSummarizer function with proper monitoring
+async function getSummarizer(lang, statusEl) {
+  if (summarizerSingleton) return summarizerSingleton;
+  
+  statusEl && (statusEl.textContent = 'Preparing model…');
+  
+  summarizerSingleton = await withTimeout(
+    Summarizer.create({
+      type: 'key-points',
+      format: 'markdown',
+      length: 'short',
+      outputLanguage: lang,
+      monitor(m) {
+        m.addEventListener('downloadprogress', (e) => {
+          const pct = Math.round((e.loaded || 0) * 100);
+          statusEl && (statusEl.textContent = `Downloading model… ${pct}%`);
+        });
+      }
+    }),
+    60000, // allow up to 60s for first model load
+    'summarizer init timeout'
+  );
+  
+  return summarizerSingleton;
+}
+
 async function runSummarizePopup() {
   const btn = document.getElementById('summarizeBtnPopup');
   const statusEl = document.getElementById('modelStatusPopup');
@@ -779,59 +881,59 @@ async function runSummarizePopup() {
   const lang = getSummLang();
 
   btn.disabled = true;
-  statusEl.textContent = 'Checking model availability…';
+  statusEl.textContent = 'Reading page...';
   out.textContent = '';
 
   try {
+    let text = await getActiveTabText();
+    if (!text) { 
+      statusEl.textContent = 'No readable text on this page.'; 
+      return; 
+    }
+
+    text = text.slice(0, 400);  // Keep it short
+
     if ('Summarizer' in self) {
-      const summarizer = await Summarizer.create({
-        type: 'key-points',
-        format: 'markdown',
-        length: 'short',
-        outputLanguage: lang,
-        monitor(m) {
-          m.addEventListener('downloadprogress', (e) => {
-            const pct = Math.round((e.loaded || 0) * 100);
-            statusEl.textContent = `Downloading model… ${pct}%`;
-          });
-        }
-      });
+      try {
+        const summarizer = await getSummarizer(lang, statusEl);
+        statusEl.textContent = 'Summarizing (15-30 sec)...';
 
-      statusEl.textContent = 'Reading page…';
-      const text = await getActiveTabText();
-      if (!text) { statusEl.textContent = 'No readable text on this page.'; return; }
+        const summary = await withTimeout(
+          summarizer.summarize(text, {
+            context: 'List key points.',  // Simple prompt
+            outputLanguage: lang
+          }),
+          30000,
+          'summarize timeout'
+        );
 
-      statusEl.textContent = 'Summarizing…';
-      const summary = await withTimeout(
-        summarizer.summarize(
-          text,
-          { context: 'Summarize payer coverage criteria and documentation requirements. Use bullet points.' }
-        ),
-        SUMMARIZE_TIMEOUT_MS,
-        'summarize timeout'
-      );
+        out.textContent = summary || '(no output)';
+        statusEl.textContent = 'Done (Summarizer API).';
+        return;
+      } catch (err) {
+        console.warn('Summarizer failed, falling back:', err.message);
+        statusEl.textContent = 'Trying Prompt API (15-30 sec)...';
+      }
+    }
 
-      out.textContent = summary || '(no output)';
-      statusEl.textContent = 'Done.';
+    if ('LanguageModel' in self) {
+      const session = await LanguageModel.create(LM_OPTS(lang));
+      const prompt = `List 5 key points:\n\n${text}`;
+      const summary = await withTimeout(session.prompt(prompt), 30000, 'prompt timeout');
+      out.textContent = typeof summary === 'string' ? summary : String(summary || '');
+      statusEl.textContent = 'Done (Prompt API).';
       return;
     }
 
-    throw new Error('Summarizer not available');
+    statusEl.textContent = 'AI not available on this device.';
   } catch (e) {
-    try {
-      statusEl.textContent = 'Summarizer unavailable/slow; falling back to Prompt API…';
-      const text = await getActiveTabText();
-      if (!text) { statusEl.textContent = 'No readable text on this page.'; return; }
-      const summary = await summarizeWithLanguageModel(text, lang);
-      out.textContent = summary || '(no output)';
-      statusEl.textContent = 'Done (Prompt API).';
-    } catch (e2) {
-      statusEl.textContent = `Error: ${e2.message || String(e2)}`;
-    }
+    statusEl.textContent = `Error: ${e.message || String(e)}`;
+    console.error('Summarize error:', e);
   } finally {
     btn.disabled = false;
   }
 }
+
 async function translateSummaryPopup() {
   const btn = document.getElementById('translateBtnPopup');
   const statusEl = document.getElementById('modelStatusPopup');
@@ -864,6 +966,7 @@ async function translateSummaryPopup() {
     btn.disabled = false;
   }
 }
+
 async function toggleHighlightsPopup() {
   const tab = await getActiveTab();
   await chrome.scripting.executeScript({
@@ -1052,6 +1155,7 @@ ${s || '(add details)'}
   f.final.value = assembled;
   setTimeout(()=>setNoteStatus('Assembled.'), 200);
 }
+
 function copyAssembled() {
   const f = noteFields();
   const txt = f.final.value || '';
@@ -1093,7 +1197,7 @@ async function testWorker() {
       suggestWorker.postMessage({ cptData: cptData.slice(0,10), tokens: ['test'] });
       setTimeout(() => { try{ suggestWorker.removeEventListener('message', handle);}catch{}; reject(new Error('no response')); }, 1200);
     }), 'worker');
-    return (res && 'results' in res) ? { status: 'ok', msg: 'Responded' } : { status: 'warn', msg: 'Unexpected response' };
+    return (res && ('results' in res)) ? { status: 'ok', msg: 'Responded' } : { status: 'warn', msg: 'Unexpected response' };
   } catch (e) { return { status: 'fail', msg: e.message }; }
 }
 async function testLM() {
@@ -1129,7 +1233,7 @@ async function testSummarizer() {
       outputLanguage: 'en',
       monitor(m) {
         m.addEventListener('downloadprogress', (e) => {
-          const pct = Math.round((e.loaded || 0) * 100);
+          const pct = Math.round(((e.loaded || 0)) * 100);
           diagLog(`Summarizer downloading… ${pct}%`);
         });
       }
@@ -1175,6 +1279,7 @@ async function runDiagnostics() {
 }
 
 // ---------- boot ----------
+// ---------- boot ----------
 document.addEventListener("DOMContentLoaded", async () => {
   setupTabs();
   await initData();
@@ -1196,6 +1301,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (e.key === "Enter") { e.preventDefault(); validateBtn.click(); }
     });
   }
+  
   const aiLine = document.getElementById("aiLine");
   const aiBtn = document.getElementById("aiExtractBtn");
   if (aiLine && aiBtn) {
