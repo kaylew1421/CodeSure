@@ -1,0 +1,25 @@
+# Store text files in the repo with LF; convert on checkout as needed
+*           text=auto eol=lf
+
+# Binary files (no EOL changes)
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+
+# Common web/text files (explicit LF)
+*.js        text eol=lf
+*.ts        text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# Windows scripts that *should* use CRLF locally
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf

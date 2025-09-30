@@ -1,0 +1,48 @@
+# -----------------------------
+# Node / Tooling
+# -----------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# If you prefer to ignore lockfiles, uncomment one of these (not recommended):
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Build / Bundles / Artifacts
+dist/
+build/
+out/
+coverage/
+*.map
+
+# Chrome Extension packaging
+*.crx
+*.pem
+codesure-unpacked.zip
+
+# Caches
+.cache/
+.parcel-cache/
+.esbuild/
+.rpt2_cache/
+.tmp/
+.tmp-*
+
+# Editors / OS files
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+.env.*
+*.local

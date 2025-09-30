@@ -1,0 +1,15 @@
+{
+  "name": "codesure",
+  "version": "0.2.0",
+  "description": "Chrome extension: mock CPT-like validator + payer rules with Chrome built-in AI.",
+  "private": true,
+  "main": "popup.html",
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0",
+    "mock:codes": "node tools/generate-mock-codes.js src/cpt-codes.json 6000",
+    "mock:rules": "node tools/generate-mock-rules.js src/cpt-codes.json src/rules.json 4242",
+    "mock:all": "npm run mock:codes && npm run mock:rules"
+  },
+  "license": "MIT",
+  "devDependencies": {}
+}

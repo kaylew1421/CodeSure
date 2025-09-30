@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeSure – CPT Code Validator</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body class="is-popup">
+  <div class="app-container">
+
+    <!-- App Bar -->
+    <header class="appbar" role="banner">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">✓</span>
+        <div class="brand-text">
+          <strong>CodeSure</strong>
+          <span class="muted tiny">CPT Code Validator</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="detachBtn" class="btn ghost slim" title="Open persistent window">Open window</button>
+      </div>
+    </header>
+
+    <main class="main-content">
+
+      <!-- Demo banner -->
+      <div id="mockBanner" class="hint">Demo Mode: using mock 5-digit codes (not real CPT).</div>
+
+      <!-- Tabs -->
+      <nav class="tabs" role="tablist" aria-label="Primary">
+        <button class="tab is-active" data-tab="tab-home" aria-selected="true" role="tab">Home</button>
+        <button class="tab" data-tab="tab-summarizer" aria-selected="false" role="tab">Policy Summarizer</button>
+        <button class="tab" data-tab="tab-note" aria-selected="false" role="tab">PA Note</button>
+        <button class="tab" data-tab="tab-diagnostics" aria-selected="false" role="tab">Diagnostics</button>
+        <span class="tab-indicator" aria-hidden="true"></span>
+      </nav>
+
+      <!-- ===== Home ===== -->
+      <section id="tab-home" class="tab-panel" role="region" aria-labelledby="Home">
+        <h1>Validate & Compare</h1>
+
+        <div class="card grid-2 gap">
+          <div>
+            <label class="label" for="cptInput">CPT codes</label>
+            <input
+              type="text"
+              id="cptInput"
+              placeholder="Enter code(s), comma-separated (e.g., 64099, 32493)"
+              autocomplete="off"
+            />
+            <div id="suggestions" class="chips suggestions"></div>
+          </div>
+
+          <div>
+            <label class="label" for="payerInput">Payer</label>
+            <select id="payerInput" aria-label="Select payer">
+              <option value="">Select Payer</option>
+              <option value="Medicare">Medicare</option>
+              <option value="BlueCross">BlueCross</option>
+              <option value="UnitedHealth">UnitedHealth</option>
+              <option value="Cigna">Cigna</option>
+              <option value="Aetna">Aetna</option>
+              <option value="Humana">Humana</option>
+            </select>
+          </div>
+
+          <div class="col-span-2">
+            <button id="validateBtn" type="button" class="btn primary w-full">Validate</button>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <section id="result" class="surface" aria-live="polite"></section>
+
+        <!-- Coverage Snapshot controls + output -->
+        <div id="snapshotBar" class="row gap" style="display:none; margin-top:8px;">
+          <button id="snapshotBtn" class="btn ghost">Generate Coverage Snapshot</button>
+          <button id="snapshotCopyBtn" class="btn ghost">Copy</button>
+        </div>
+        <pre id="snapshotOut" class="mono small block surface" style="display:none;" aria-live="polite"></pre>
+
+        <h3>Validation History</h3>
+        <div id="history" class="surface" aria-live="polite"></div>
+
+        <!-- AI Assist -->
+        <section class="card">
+          <div class="row">
+            <h2 class="tight">AI Assist</h2>
+            <label class="tiny muted row gap">
+              <span>Language</span>
+              <select id="popupLang">
+                <option value="en">EN</option>
+                <option value="es">ES</option>
+                <option value="ja">JA</option>
+              </select>
+            </label>
+          </div>
+
+          <form id="ai-extract-form" class="stack">
+            <label class="label" for="aiLine">Describe the service</label>
+            <input id="aiLine" type="text" placeholder="Describe service, modifiers, body part…" />
+
+            <!-- Attachments (always visible) -->
+            <div id="attachWrap" class="stack">
+              <label class="label" for="attachInput">Attachments (optional)</label>
+              <input id="attachInput" type="file" multiple
+                     accept=".txt,.md,.json,application/json,image/*,application/pdf" />
+              <div id="attachList" class="mono small muted"></div>
+            </div>
+
+            <button id="aiExtractBtn" type="button" class="btn primary">Suggest Code</button>
+          </form>
+
+          <div id="attrChips" class="chips"></div>
+          <div id="aiExtractOut" class="mono small block surface"></div>
+        </section>
+
+        <!-- Payer comparison renders here -->
+        <section id="payerCompare"></section>
+      </section>
+
+      <!-- ===== Policy Summarizer ===== -->
+      <section id="tab-summarizer" class="tab-panel" role="region" hidden>
+        <div class="row">
+          <h2 class="tight">Policy Summarizer</h2>
+          <label class="tiny muted row gap">
+            <span>Language</span>
+            <select id="sumLang">
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+              <option value="ja">JA</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row gap wrap">
+          <button id="summarizeBtnPopup" type="button" class="btn primary">Summarize This Page</button>
+          <button id="translateBtnPopup" type="button" class="btn ghost">Translate Summary</button>
+          <button id="highlightBtnPopup" type="button" class="btn ghost">Toggle Highlights</button>
+        </div>
+
+        <div id="modelStatusPopup" class="hint"></div>
+        <pre id="summaryPopup" class="mono small block surface"></pre>
+      </section>
+
+      <!-- ===== PA Note ===== -->
+      <section id="tab-note" class="tab-panel" role="region" hidden>
+        <div class="row">
+          <h2 class="tight">Prior Authorization Note</h2>
+          <label class="tiny muted row gap">
+            <span>Language</span>
+            <select id="noteLang">
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+              <option value="ja">JA</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="card grid-2 gap">
+          <label>Service<input id="noteService" class="input" /></label>
+          <label>Codes<input id="noteCodes" class="input" /></label>
+          <label>Payer<input id="notePayer" class="input" /></label>
+        </div>
+
+        <div class="row gap wrap">
+          <button id="syncNoteBtn" type="button" class="btn ghost">Sync from Home</button>
+          <button id="genNoteFieldsBtn" type="button" class="btn ghost">Autofill</button>
+          <button id="polishNoteFieldsBtn" type="button" class="btn ghost">Polish</button>
+          <button id="assembleNoteBtn" type="button" class="btn primary">Assemble</button>
+          <button id="copyAssembledBtn" type="button" class="btn ghost">Copy</button>
+          <span id="noteStatus" class="hint"></span>
+        </div>
+
+        <div class="grid-1 gap">
+          <label>Medical Necessity Rationale<textarea id="noteRationale" rows="4"></textarea></label>
+          <label>Relevant History/Imaging<textarea id="noteHistory" rows="4"></textarea></label>
+          <label>Site of Service/Modifiers<textarea id="noteSite" rows="3"></textarea></label>
+          <label>Final Note<textarea id="noteFinal" rows="8"></textarea></label>
+        </div>
+      </section>
+
+      <!-- ===== Diagnostics ===== -->
+      <section id="tab-diagnostics" class="tab-panel" role="region" hidden>
+        <div class="row">
+          <h2 class="tight">Diagnostics</h2>
+          <div class="row gap">
+            <button id="runDiagBtn" type="button" class="btn ghost">Run</button>
+          </div>
+        </div>
+
+        <ul class="diag-list">
+          <li><span id="diag-Data-dot" class="dot"></span> Data files <em id="diag-Data-msg"></em></li>
+          <li><span id="diag-Worker-dot" class="dot"></span> Suggestion Worker <em id="diag-Worker-msg"></em></li>
+          <li><span id="diag-LM-dot" class="dot"></span> Prompt API (LanguageModel) <em id="diag-LM-msg"></em></li>
+          <li><span id="diag-Translator-dot" class="dot"></span> Translator <em id="diag-Translator-msg"></em></li>
+          <li><span id="diag-Summarizer-dot" class="dot"></span> Summarizer <em id="diag-Summarizer-msg"></em></li>
+        </ul>
+
+        <pre id="diagLog" class="mono small block surface"></pre>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="src/script.js"></script>
+</body>
+</html>

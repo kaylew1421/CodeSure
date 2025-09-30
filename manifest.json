@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "CodeSure – CPT Code Validator",
+  "version": "0.2.2",
+  "description": "Validate mock 5-digit codes, compare payer rules, suggest codes, summarize policies, and build PA notes on-device.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "permissions": ["activeTab", "scripting"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
