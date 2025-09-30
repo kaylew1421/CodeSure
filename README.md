@@ -15,7 +15,6 @@ A Chrome extension leveraging Chrome's Built-in AI APIs (Gemini Nano) to validat
 ### Core Functionality
 - **AI-Powered Code Suggestions** – Describe a medical service (e.g., "CT abdomen with contrast") and receive ranked CPT code suggestions using Chrome's Prompt API
 - **Payer Rule Comparison** – Side-by-side comparison of coverage rules across 6 major payers (Medicare, BlueCross, UnitedHealth, Cigna, Aetna, Humana)
-- **Policy Summarizer** – Extract key points from any policy page with one click using the Summarizer API
 - **Multilingual Support** – Translate outputs to English, Spanish, or Japanese using the Translator API
 - **PA Note Builder** – Generate structured prior authorization documentation with AI assistance
 - **Coverage Snapshots** – Quick summaries combining payer rules and required documentation
@@ -47,9 +46,6 @@ chrome://flags/#optimization-guide-on-device-model
 → Set to "Enabled BypassPerfRequirement"
 
 chrome://flags/#prompt-api-for-gemini-nano
-→ Set to "Enabled"
-
-chrome://flags/#summarization-api-for-gemini-nano
 → Set to "Enabled"
 
 chrome://flags/#translation-api
@@ -106,14 +102,7 @@ On first use, Chrome will download AI models (~22MB). This takes 1-2 minutes and
    - Review AI-extracted attributes and code suggestions
    - Click "Use" to add a suggestion to the validation field
 
-4. **Test Policy Summarizer**
-   - Navigate to a policy page (try: https://www.cms.gov/medicare-coverage-database)
-   - Open CodeSure → "Policy Summarizer" tab
-   - Click "Summarize This Page"
-   - Wait 15-30 seconds for on-device processing
-   - Try translating to Spanish or Japanese
-
-5. **Build a PA Note**
+4. **Build a PA Note**
    - Go to "PA Note" tab
    - Click "Sync from Home" to pull in your codes
    - Click "Autofill" to generate AI draft content
@@ -132,7 +121,6 @@ User Input → Chrome Built-in AI APIs → Local Processing → Results
             (Gemini Nano Models)
                     ↓
         - Prompt API (structured extraction)
-        - Summarizer API (key points)
         - Translator API (multilingual)
 ```
 
@@ -150,13 +138,7 @@ User Input → Chrome Built-in AI APIs → Local Processing → Results
    - Displays coverage status with color coding
    - Offers payer comparison table with CSV export
 
-3. **Summarization Flow**
-   - Extension reads visible text from active tab
-   - Summarizer API generates key points (or falls back to Prompt API)
-   - Results can be translated to ES/JA
-   - Key terms highlighted on original page
-
-4. **PA Note Generation Flow**
+3. **PA Note Generation Flow**
    - User syncs service/code/payer from Home tab
    - Prompt API drafts field content (medical necessity, history, modifiers)
    - User can polish with proofreading
@@ -168,7 +150,6 @@ User Input → Chrome Built-in AI APIs → Local Processing → Results
 
 ### Chrome Built-in AI APIs
 - **Prompt API** (LanguageModel) – Structured attribute extraction, code suggestions, rule explanations, note generation
-- **Summarizer API** – Key-point extraction from policy documents
 - **Translator API** – Multilingual output (EN/ES/JA) with Prompt API fallback
 
 ### Core Technologies
@@ -208,16 +189,8 @@ Payer: BlueCross
 Expected: Shows 3 separate validation results
 ```
 
-**Scenario 4: Policy Summarization**
-```
-Page: Any medical policy page (e.g., CMS LCD)
-Expected: 5-7 bullet points of key requirements
-Time: 15-30 seconds
-```
-
 ### Known Limitations
 - First AI operation may take 1-2 minutes (model download)
-- Summarizer works best on text-heavy pages (400-2000 chars)
 - Mock data only covers ~50 sample codes
 - Translation quality varies by language pair
 
@@ -230,10 +203,9 @@ Medical claim denials cost the US healthcare system $262 billion annually. Many 
 
 ### Challenges Overcome
 1. **Model Availability** – Built robust fallbacks for when APIs aren't available or fail
-2. **Performance** – Optimized for 30-second summarization on resource-constrained devices
-3. **Multilingual Quality** – Ensured consistent output across EN/ES/JA with translation validation
-4. **CSP Compliance** – Eliminated all inline scripts for Manifest V3 compliance
-5. **User Experience** – Balanced feature richness with simplicity for time-pressed clinicians
+2. **Multilingual Quality** – Ensured consistent output across EN/ES/JA with translation validation
+3. **CSP Compliance** – Eliminated all inline scripts for Manifest V3 compliance
+4. **User Experience** – Balanced feature richness with simplicity for time-pressed clinicians
 
 ### What I Learned
 - Implementing Chrome's experimental Built-in AI APIs in production
