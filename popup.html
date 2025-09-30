@@ -31,119 +31,94 @@
       <!-- Tabs -->
       <nav class="tabs" role="tablist" aria-label="Primary">
         <button class="tab is-active" data-tab="tab-home" aria-selected="true" role="tab">Home</button>
-        <button class="tab" data-tab="tab-summarizer" aria-selected="false" role="tab">Policy Summarizer</button>
         <button class="tab" data-tab="tab-note" aria-selected="false" role="tab">PA Note</button>
         <button class="tab" data-tab="tab-diagnostics" aria-selected="false" role="tab">Diagnostics</button>
         <span class="tab-indicator" aria-hidden="true"></span>
       </nav>
 
       <!-- ===== Home ===== -->
-      <section id="tab-home" class="tab-panel" role="region" aria-labelledby="Home">
-        <h1>Validate & Compare</h1>
+<section id="tab-home" class="tab-panel" role="region" aria-labelledby="Home">
+  <div class="row" style="margin-bottom: 12px;">
+    <h1 style="margin: 0;">Validate & Compare</h1>
+    <label class="tiny muted row gap">
+      <span>Language</span>
+      <select id="popupLang">
+        <option value="en">EN</option>
+        <option value="es">ES</option>
+        <option value="ja">JA</option>
+      </select>
+    </label>
+  </div>
 
-        <div class="card grid-2 gap">
-          <div>
-            <label class="label" for="cptInput">CPT codes</label>
-            <input
-              type="text"
-              id="cptInput"
-              placeholder="Enter code(s), comma-separated (e.g., 64099, 32493)"
-              autocomplete="off"
-            />
-            <div id="suggestions" class="chips suggestions"></div>
-          </div>
+  <div class="card grid-2 gap">
+    <div>
+      <label class="label" for="cptInput">CPT codes</label>
+      <input
+        type="text"
+        id="cptInput"
+        placeholder="Enter code(s), comma-separated (e.g., 64099, 32493)"
+        autocomplete="off"
+      />
+      <div id="suggestions" class="chips suggestions"></div>
+    </div>
 
-          <div>
-            <label class="label" for="payerInput">Payer</label>
-            <select id="payerInput" aria-label="Select payer">
-              <option value="">Select Payer</option>
-              <option value="Medicare">Medicare</option>
-              <option value="BlueCross">BlueCross</option>
-              <option value="UnitedHealth">UnitedHealth</option>
-              <option value="Cigna">Cigna</option>
-              <option value="Aetna">Aetna</option>
-              <option value="Humana">Humana</option>
-            </select>
-          </div>
+    <div>
+      <label class="label" for="payerInput">Payer</label>
+      <select id="payerInput" aria-label="Select payer">
+        <option value="">Select Payer</option>
+        <option value="Medicare">Medicare</option>
+        <option value="BlueCross">BlueCross</option>
+        <option value="UnitedHealth">UnitedHealth</option>
+        <option value="Cigna">Cigna</option>
+        <option value="Aetna">Aetna</option>
+        <option value="Humana">Humana</option>
+      </select>
+    </div>
 
-          <div class="col-span-2">
-            <button id="validateBtn" type="button" class="btn primary w-full">Validate</button>
-          </div>
-        </div>
+    <div class="col-span-2">
+      <button id="validateBtn" type="button" class="btn primary w-full">Validate</button>
+    </div>
+  </div>
 
-        <!-- Results -->
-        <section id="result" class="surface" aria-live="polite"></section>
+  <!-- Results -->
+  <section id="result" class="surface" aria-live="polite"></section>
 
-        <!-- Coverage Snapshot controls + output -->
-        <div id="snapshotBar" class="row gap" style="display:none; margin-top:8px;">
-          <button id="snapshotBtn" class="btn ghost">Generate Coverage Snapshot</button>
-          <button id="snapshotCopyBtn" class="btn ghost">Copy</button>
-        </div>
-        <pre id="snapshotOut" class="mono small block surface" style="display:none;" aria-live="polite"></pre>
+  <!-- Coverage Snapshot controls + output -->
+  <div id="snapshotBar" class="row gap" style="display:none; margin-top:8px;">
+    <button id="snapshotBtn" class="btn ghost">Generate Coverage Snapshot</button>
+    <button id="snapshotCopyBtn" class="btn ghost">Copy</button>
+  </div>
+  <pre id="snapshotOut" class="mono small block surface" style="display:none;" aria-live="polite"></pre>
 
-        <h3>Validation History</h3>
-        <div id="history" class="surface" aria-live="polite"></div>
+  <h3>Validation History</h3>
+  <div id="history" class="surface" aria-live="polite"></div>
 
-        <!-- AI Assist -->
-        <section class="card">
-          <div class="row">
-            <h2 class="tight">AI Assist</h2>
-            <label class="tiny muted row gap">
-              <span>Language</span>
-              <select id="popupLang">
-                <option value="en">EN</option>
-                <option value="es">ES</option>
-                <option value="ja">JA</option>
-              </select>
-            </label>
-          </div>
+  <!-- AI Assist -->
+  <section class="card">
+    <h2 class="tight">AI Assist</h2>
 
-          <form id="ai-extract-form" class="stack">
-            <label class="label" for="aiLine">Describe the service</label>
-            <input id="aiLine" type="text" placeholder="Describe service, modifiers, body part…" />
+    <form id="ai-extract-form" class="stack">
+      <label class="label" for="aiLine">Describe the service</label>
+      <input id="aiLine" type="text" placeholder="Describe service, modifiers, body part…" />
 
-            <!-- Attachments (always visible) -->
-            <div id="attachWrap" class="stack">
-              <label class="label" for="attachInput">Attachments (optional)</label>
-              <input id="attachInput" type="file" multiple
-                     accept=".txt,.md,.json,application/json,image/*,application/pdf" />
-              <div id="attachList" class="mono small muted"></div>
-            </div>
+      <!-- Attachments (always visible) -->
+      <div id="attachWrap" class="stack">
+        <label class="label" for="attachInput">Attachments (optional)</label>
+        <input id="attachInput" type="file" multiple
+               accept=".txt,.md,.json,application/json,image/*,application/pdf" />
+        <div id="attachList" class="mono small muted"></div>
+      </div>
 
-            <button id="aiExtractBtn" type="button" class="btn primary">Suggest Code</button>
-          </form>
+      <button id="aiExtractBtn" type="button" class="btn primary">Suggest Code</button>
+    </form>
 
-          <div id="attrChips" class="chips"></div>
-          <div id="aiExtractOut" class="mono small block surface"></div>
-        </section>
+    <div id="attrChips" class="chips"></div>
+    <div id="aiExtractOut" class="mono small block surface"></div>
+  </section>
 
-        <!-- Payer comparison renders here -->
-        <section id="payerCompare"></section>
-      </section>
-
-      <!-- ===== Policy Summarizer ===== -->
-      <section id="tab-summarizer" class="tab-panel" role="region" hidden>
-        <div class="row">
-          <h2 class="tight">Policy Summarizer</h2>
-          <label class="tiny muted row gap">
-            <span>Language</span>
-            <select id="sumLang">
-              <option value="en">EN</option>
-              <option value="es">ES</option>
-              <option value="ja">JA</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="row gap wrap">
-          <button id="summarizeBtnPopup" type="button" class="btn primary">Summarize This Page</button>
-          <button id="translateBtnPopup" type="button" class="btn ghost">Translate Summary</button>
-          <button id="highlightBtnPopup" type="button" class="btn ghost">Toggle Highlights</button>
-        </div>
-
-        <div id="modelStatusPopup" class="hint"></div>
-        <pre id="summaryPopup" class="mono small block surface"></pre>
-      </section>
+  <!-- Payer comparison renders here -->
+  <section id="payerCompare"></section>
+</section>
 
       <!-- ===== PA Note ===== -->
       <section id="tab-note" class="tab-panel" role="region" hidden>
@@ -196,7 +171,6 @@
           <li><span id="diag-Worker-dot" class="dot"></span> Suggestion Worker <em id="diag-Worker-msg"></em></li>
           <li><span id="diag-LM-dot" class="dot"></span> Prompt API (LanguageModel) <em id="diag-LM-msg"></em></li>
           <li><span id="diag-Translator-dot" class="dot"></span> Translator <em id="diag-Translator-msg"></em></li>
-          <li><span id="diag-Summarizer-dot" class="dot"></span> Summarizer <em id="diag-Summarizer-msg"></em></li>
         </ul>
 
         <pre id="diagLog" class="mono small block surface"></pre>
