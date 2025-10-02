@@ -1,6 +1,3 @@
-// ----------------------------
-// CodeSure - popup script.js (cleaned - no Summarizer)
-// ----------------------------
 
 let cptData = [];
 let rulesData = {};
@@ -86,7 +83,8 @@ async function saveHistoryItem(html) {
     arr.unshift({ ts: Date.now(), html });
     await chrome.storage.local.set({ [key]: arr.slice(0, 20) });
   } catch (e) {
-    // storage may be unavailable in some contexts—gracefully ignore
+
+
   }
 }
 async function loadHistory() {

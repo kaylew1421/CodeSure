@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CodeSure – CPT Code Validator",
-  "version": "0.2.2",
-  "description": "Validate mock 5-digit codes, compare payer rules, suggest codes with AI, summarize policies, and build PA notes using Chrome's built-in AI APIs.",
+  "version": "0.3.0",
+  "description": "Validate mock 5-digit codes, compare payer rules, suggest codes with AI, translate medical records, and build PA notes using Chrome's built-in AI APIs.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
