@@ -1,4 +1,3 @@
-
 let cptData = [];
 let rulesData = {};
 let dataLoaded = false;
@@ -46,6 +45,177 @@ function sanitizeAI(text) {
   return out;
 }
 
+// ---- Busy indicator ----
+function setBusy(opts) {
+  const {
+    btnIds = [],
+    panelId = null,
+    busy = false,
+    labelWhenBusy = 'Working…',
+    htmlWhenBusy = null
+  } = opts || {};
+
+  if (panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel) {
+      panel.style.display = 'block';
+      if (busy) {
+        const msg = htmlWhenBusy || `<span class="spinner" aria-hidden="true"></span>${labelWhenBusy}`;
+        panel.innerHTML = `<div class="row gap">${msg}</div>`;
+      }
+    }
+  }
+  btnIds.forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    if (!b.dataset.label) b.dataset.label = b.textContent || labelWhenBusy;
+    b.disabled = !!busy;
+    b.textContent = busy ? labelWhenBusy : b.dataset.label;
+  });
+}
+
+// --- progress bar helper for Check Auth Risk ---
+function createProgress(mountId, label = 'Checking…') {
+  const el = document.getElementById(mountId);
+  if (!el) return null;
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="tiny muted" id="riskProgLabel">${label} <span id="riskProgPct">0%</span></div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="bar" id="riskProgBar"></div>
+    </div>
+  `;
+
+  const bar = el.querySelector('#riskProgBar');
+  const pctEl = el.querySelector('#riskProgPct');
+  const progEl = el.querySelector('.progress');
+
+  let pct = 0;
+  const timer = setInterval(() => {
+    pct = Math.min(pct + 3, 90);
+    update(pct);
+  }, 150);
+
+  function update(nextPct, text) {
+    pct = Math.max(0, Math.min(100, Math.floor(nextPct)));
+    if (bar) bar.style.width = pct + '%';
+    if (progEl) progEl.setAttribute('aria-valuenow', String(pct));
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (typeof text === 'string') {
+      const lbl = el.querySelector('#riskProgLabel');
+      if (lbl) lbl.firstChild.nodeValue = text + ' ';
+    }
+  }
+  function done() { clearInterval(timer); update(100, 'Done'); }
+  return { update, done };
+}
+
+/* ============================
+   AUTOSAVE / RESTORE (popup)
+   ============================ */
+const DRAFT_KEY = 'codesure_state_v3';
+
+function getActiveTabId() {
+  const btn = document.querySelector('.tab.is-active');
+  return btn ? btn.getAttribute('data-tab') : 'tab-home';
+}
+function showTabById(id) {
+  const btn = document.querySelector(`.tab[data-tab="${id}"]`);
+  if (btn) btn.click();
+}
+function gatherDraft() {
+  const val = id => (document.getElementById(id)?.value ?? '');
+  const html = id => (document.getElementById(id)?.innerHTML ?? '');
+  const text = id => (document.getElementById(id)?.textContent ?? '');
+
+  return {
+    v: 1,
+    activeTab: getActiveTabId(),
+    popupLang: val('popupLang'),
+    cptInput: val('cptInput'),
+    payerInput: val('payerInput'),
+    payerPolicy: val('payerPolicy'),
+    clinicalNotes: val('clinicalNotes'),
+    aiLine: val('aiLine'),
+    noteLang: val('noteLang'),
+    noteService: val('noteService'),
+    noteCodes: val('noteCodes'),
+    notePayer: val('notePayer'),
+    noteRationale: val('noteRationale'),
+    noteHistory: val('noteHistory'),
+    noteSite: val('noteSite'),
+    noteFinal: val('noteFinal'),
+    resultHTML: html('result'),
+    payerCompareHTML: html('payerCompare'),
+    riskHTML: html('riskOut'),
+    snapshotText: text('snapshotOut'),
+    policySummaryText: text('policySummaryOut'),
+    snapshotBarVisible: (document.getElementById('snapshotBar')?.style.display || '') !== 'none',
+    scroll: { x: window.scrollX, y: window.scrollY }
+  };
+}
+function applyDraft(s) {
+  if (!s || typeof s !== 'object') return;
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && typeof v === 'string') el.value = v; };
+  const setHTML2 = (id, v) => { const el = document.getElementById(id); if (el && typeof v === 'string') el.innerHTML = v; };
+  const setText = (id, v) => { const el = document.getElementById(id); if (el && typeof v === 'string') { el.textContent = v; if (v) el.style.display = 'block'; } };
+
+  setVal('popupLang', s.popupLang);
+  setVal('cptInput', s.cptInput);
+  setVal('payerInput', s.payerInput);
+  setVal('payerPolicy', s.payerPolicy);
+  setVal('clinicalNotes', s.clinicalNotes);
+  setVal('aiLine', s.aiLine);
+  setVal('noteLang', s.noteLang);
+  setVal('noteService', s.noteService);
+  setVal('noteCodes', s.noteCodes);
+  setVal('notePayer', s.notePayer);
+  setVal('noteRationale', s.noteRationale);
+  setVal('noteHistory', s.noteHistory);
+  setVal('noteSite', s.noteSite);
+  setVal('noteFinal', s.noteFinal);
+
+  setHTML2('result', s.resultHTML);
+  setHTML2('payerCompare', s.payerCompareHTML);
+  if (s.riskHTML) { const r = document.getElementById('riskOut'); if (r) { r.innerHTML = s.riskHTML; r.style.display = 'block'; } }
+  setText('snapshotOut', s.snapshotText);
+  setText('policySummaryOut', s.policySummaryText);
+
+  if (typeof s.snapshotBarVisible === 'boolean') {
+    const bar = document.getElementById('snapshotBar');
+    if (bar) bar.style.display = s.snapshotBarVisible ? 'flex' : 'none';
+  }
+
+  if (s.activeTab) showTabById(s.activeTab);
+  if (s.scroll) requestAnimationFrame(() => window.scrollTo(s.scroll.x || 0, s.scroll.y || 0));
+}
+const saveDraft = (() => {
+  let t;
+  return () => {
+    clearTimeout(t);
+    t = setTimeout(async () => {
+      try { await chrome.storage.local.set({ [DRAFT_KEY]: gatherDraft() }); } catch {}
+    }, 250);
+  };
+})();
+async function autoRestore() {
+  try {
+    const { [DRAFT_KEY]: draft } = await chrome.storage.local.get(DRAFT_KEY);
+    if (draft) applyDraft(draft);
+  } catch {}
+}
+function wireAutosave() {
+  document.addEventListener('input', saveDraft, true);
+  document.addEventListener('change', saveDraft, true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') chrome.storage.local.set({ [DRAFT_KEY]: gatherDraft() }).catch(()=>{});
+  });
+  window.addEventListener('beforeunload', () => {
+    chrome.storage.local.set({ [DRAFT_KEY]: gatherDraft() }).catch(()=>{});
+  });
+}
+
 // ---------- tabs ----------
 function setupTabs() {
   const tabs = Array.from(document.querySelectorAll('.tab'));
@@ -64,11 +234,13 @@ function setupTabs() {
       byId(id).hidden = false;
 
       if (id === 'tab-note') syncNoteFromHome();
+
+      if (typeof saveDraft === 'function') saveDraft();
     });
   });
 }
 
-// ---------- JSON + History (persistent) ----------
+// ---------- JSON + History ----------
 async function loadJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} -> ${r.status}`);
@@ -82,10 +254,7 @@ async function saveHistoryItem(html) {
     const arr = Array.isArray(store[key]) ? store[key] : [];
     arr.unshift({ ts: Date.now(), html });
     await chrome.storage.local.set({ [key]: arr.slice(0, 20) });
-  } catch (e) {
-
-
-  }
+  } catch {}
 }
 async function loadHistory() {
   try {
@@ -94,7 +263,13 @@ async function loadHistory() {
     const arr = Array.isArray(store[key]) ? store[key] : [];
     const h = document.getElementById('history');
     if (!h) return;
-    h.innerHTML = arr.map(x => `<div class="mono tiny muted">${new Date(x.ts).toLocaleTimeString()}</div>${x.html}<hr/>`).join('');
+    if (!arr.length) {
+      h.innerHTML = '<div class="tiny muted">No history yet.</div>';
+      return;
+    }
+    h.innerHTML = arr
+      .map(x => `<div class="mono tiny muted">${new Date(x.ts).toLocaleTimeString()}</div>${x.html}<hr/>`)
+      .join('');
   } catch {}
 }
 function addHistory(html) {
@@ -104,6 +279,14 @@ function addHistory(html) {
     h.insertAdjacentHTML('afterbegin', entry);
   }
   saveHistoryItem(html);
+}
+async function clearHistory() {
+  const key = 'codesure_history';
+  try {
+    await chrome.storage.local.set({ [key]: [] });
+  } catch {}
+  const h = document.getElementById('history');
+  if (h) h.innerHTML = '<div class="tiny muted">History cleared.</div>';
 }
 
 // ---------- language pickers ----------
@@ -257,6 +440,7 @@ async function doValidate() {
 
   setHTML(resultEl, out);
   addHistory(out);
+  if (typeof saveDraft === 'function') saveDraft();
 
   const snapshotBar = document.getElementById('snapshotBar');
   if (snapshotBar) snapshotBar.style.display = 'flex';
@@ -332,7 +516,7 @@ async function readAttachments() {
   return { text, hints };
 }
 
-// domain token expansion
+// token expansion
 function expandTokens(text) {
   const synonyms = {
     ct: ['ct','computed tomography','ct scan','cat scan','tomography'],
@@ -341,7 +525,6 @@ function expandTokens(text) {
     ultrasound: ['ultrasound','sonogram','sonography','doppler'],
     nuclear: ['nuclear','pet','pet-ct','nuclear medicine'],
     echo: ['echo','echocardiogram','echocardiography','stress echo'],
-    views: ['single view','2 views','3 views','ap','lateral'],
     surgery: ['surgery','operative','procedure','arthroscopy','endoscopy','colonoscopy','egd','ercp','stent','cath','reconstruction','release','repair'],
     em: ['e/m','evaluation & management','visit','office','outpatient','telehealth','telemedicine','ed','er','inpatient','observation','preventive','annual'],
     therapy: ['therapy','pt','ot','slp','physical therapy','occupational therapy','speech therapy','eval','re-eval','group'],
@@ -427,7 +610,6 @@ function exportComparisonCSV(code, rules) {
   a.download = `codesure_${code}_payer_comparison.csv`;
   a.click();
 }
-
 async function explainRuleOneLiner(ruleTextEn, lang) {
   if (!('LanguageModel' in self)) return '';
   try {
@@ -448,7 +630,6 @@ Output only the sentence.`;
     return '';
   }
 }
-
 async function renderPayerCompare(code) {
   document.querySelector('.tab[data-tab="tab-home"]')?.click();
 
@@ -571,15 +752,6 @@ async function runSuggest() {
       }).filter(x => x.score > 0).sort((a,b)=>b.score-a.score).slice(0,5);
     }
 
-    if (suggestions.length < 3 && /ct|mri|x[- ]?ray|ultrasound|sonogram|fluoro|nuclear|pet/i.test(line)) {
-      const extra = cptData
-        .filter(r => /imaging/i.test(r.category) || /(ct|mri|x[- ]?ray|ultrasound|sonogram|fluoro|nuclear|pet)/i.test(r.description))
-        .slice(0, 5 - suggestions.length)
-        .map(r => ({ code: r.code, description: r.description, category: r.category, score: 1 }));
-      const seen = new Set(suggestions.map(s => s.code));
-      for (const e of extra) if (!seen.has(e.code)) suggestions.push(e);
-    }
-
     const pieces = [];
     if (line) pieces.push(`${await tText('Service:', lang, tx)} ${await tText(line, lang, tx)}`);
 
@@ -590,7 +762,6 @@ async function runSuggest() {
       if (Array.isArray(attrs.modifiers) && attrs.modifiers.length) {
         attrs.modifiers = await tLines(attrs.modifiers, lang, tx);
       }
-      pieces.push(`${await tText('AI Extraction:', lang, tx)}\n${JSON.stringify(attrs, null, 2)}`);
     }
 
     if (aHints.length || aText) {
@@ -633,12 +804,13 @@ async function runSuggest() {
           parts.push(s.code);
           cptInput.value = parts.join(", ");
           document.querySelector('.tab[data-tab="tab-home"]')?.click();
+          if (typeof saveDraft === 'function') saveDraft();
         });
 
         const cmpBtn = document.createElement('button');
         cmpBtn.className = 'btn slim';
         cmpBtn.textContent = `${await tText('Compare', lang, tx)} ${s.code}`;
-        cmpBtn.addEventListener('click', () => { renderPayerCompare(s.code); });
+        cmpBtn.addEventListener('click', () => { renderPayerCompare(s.code); if (typeof saveDraft === 'function') saveDraft(); });
 
         rowWrap.appendChild(useBtn);
         rowWrap.appendChild(cmpBtn);
@@ -664,7 +836,6 @@ function pickFirstValidCodeFromInput() {
   }
   return null;
 }
-
 async function generateCoverageSnapshot() {
   const snapOut = document.getElementById('snapshotOut');
   if (!snapOut) return;
@@ -695,9 +866,196 @@ async function generateCoverageSnapshot() {
   }
 
   snapOut.textContent = parts.join('\n');
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
-// ---------- PA Note (structured fields) ----------
+// ---------- Additional Context tools ----------
+async function summarizePolicy(){
+  const out = document.getElementById('policySummaryOut');
+  const lang = getPopupLang();
+  const tx = await getTranslator(lang, 'en');
+
+  setBusy({
+    btnIds:['summarizePolicyBtn'],
+    panelId:'policySummaryOut',
+    busy:true,
+    labelWhenBusy:'Summarizing…',
+    htmlWhenBusy:'<span class="spinner"></span>Summarizing policy…'
+  });
+  try{
+    const raw=(document.getElementById('payerPolicy')?.value||'').trim();
+    if(!raw){ if(out){out.style.display='none'; out.textContent='';} return; }
+    let summary='';
+    if('LanguageModel' in self){
+      try{
+        const sess=await withTimeout(LanguageModel.create(LM_OPTS('en')), PROMPT_AI_DEADLINE_MS,'create');
+        summary=await withTimeout(
+          sess.prompt(`Summarize the payer authorization policy into 5-7 bullet points focusing on when PA is required, criteria, exclusions, and documentation needed. Output plain text bullets.\n\n${raw}`),
+          PROMPT_AI_DEADLINE_MS,'prompt'
+        );
+      }catch(e){}
+    }
+    if(!summary){
+      summary = raw.replace(/\s*\n\s*/g,' ').split(/(?<=\.)\s+/).slice(0,6).map(s=>'• '+s).join('\n');
+    }
+    summary = await tText(String(summary), lang, tx);
+
+    if(out){out.textContent=String(summary); out.style.display='block';}
+  } finally {
+    setBusy({ btnIds:['summarizePolicyBtn'], panelId:'policySummaryOut', busy:false });
+    if (typeof saveDraft === 'function') saveDraft();
+  }
+}
+
+// Paste From Capture (storage first, then clipboard)
+async function pasteFromCapture(){
+  const el = document.getElementById('payerPolicy');
+  if (!el) return;
+
+  try {
+    const v = await chrome.storage?.local.get(['payerPolicyCaptured']);
+    const stored = (v && v.payerPolicyCaptured) ? String(v.payerPolicyCaptured).trim() : '';
+    if (stored) {
+      const was = el.value.trim();
+      el.value = was ? (was + '\n\n' + stored) : stored;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof saveDraft === 'function') saveDraft();
+      return;
+    }
+  } catch {}
+
+  try {
+    const clip = await navigator.clipboard.readText();
+    const txt = (clip || '').trim();
+    if (txt) {
+      const was = el.value.trim();
+      el.value = was ? (was + '\n\n' + txt) : txt;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof saveDraft === 'function') saveDraft();
+      return;
+    }
+  } catch {}
+
+  const out = document.getElementById('policySummaryOut');
+  if (out) {
+    out.style.display = 'block';
+    out.textContent = 'Nothing captured yet. Highlight text on a payer page first or copy text to clipboard, then click “Paste From Capture.”';
+    setTimeout(()=>{ out.style.display='none'; }, 3000);
+  }
+}
+
+function loadDemoData(){
+  setBusy({ btnIds:['loadDemoBtn'], busy:true, labelWhenBusy:'Loading…' });
+  try{
+    const cpt = document.getElementById('cptInput');
+    const payer = document.getElementById('payerInput');
+    const policy = document.getElementById('payerPolicy');
+    const notes = document.getElementById('clinicalNotes');
+    if (cpt) cpt.value = '53193';
+    if (payer) payer.value = 'BlueCross';
+    if (policy) policy.value =
+      'Knee CT and arthroplasty preauthorization criteria include: documented osteoarthritis refractory to conservative care; imaging demonstrating joint-space narrowing; prior trials of PT and NSAIDs; surgeon attestation; and pre-op medical clearance. Authorization required for outpatient; inpatient exempt.';
+    if (notes) notes.value =
+      '72-year-old with severe OA, failed PT/NSAIDs; antalgic gait; imaging shows severe tricompartmental OA; candidate for TKA. Creatinine WNL. No contrast allergy.';
+    const mock = document.getElementById('mockBanner');
+    if (mock) mock.textContent = 'Demo Mode: Demo case loaded.';
+  } finally {
+    setBusy({ btnIds:['loadDemoBtn'], busy:false });
+    if (typeof saveDraft === 'function') saveDraft();
+  }
+}
+
+// ---------- Auth Risk ----------
+function riskMeter(score) {
+  const s = Math.max(0, Math.min(100, parseInt(score||0)));
+  return `<div style="height:10px; border-radius:6px; background:linear-gradient(90deg,#4caf50,#ffeb3b,#f44336); position:relative;">
+    <div style="position:absolute; left:${s}%; top:-4px;">▲</div>
+  </div>`;
+}
+async function checkAuthRisk() {
+  setBusy({ btnIds:['riskBtn','riskBtn2'], busy:true, labelWhenBusy:'Checking…' });
+
+  const out = document.getElementById('riskOut');
+  if (out) out.style.display = 'block';
+
+  const lang = getPopupLang();
+  const tx = await getTranslator(lang, 'en');
+
+  const prog = createProgress('riskOut', await tText('Checking…', lang, tx));
+
+  try {
+    prog?.update(10, await tText('Gathering inputs…', lang, tx));
+    const codes = (document.getElementById('cptInput')?.value || '').trim();
+    const payer = (document.getElementById('payerInput')?.value || '').trim();
+    const policy = (document.getElementById('payerPolicy')?.value || '').trim();
+    const notes  = (document.getElementById('clinicalNotes')?.value || '').trim();
+    if (!codes || !payer) {
+      out.textContent = await tText('Enter codes and a payer first.', lang, tx);
+      return;
+    }
+
+    prog?.update(30, await tText('Preparing analysis…', lang, tx));
+
+    let payload = null;
+    if ('LanguageModel' in self) {
+      try {
+        const s = await withTimeout(LanguageModel.create(LM_OPTS(lang)), 2500, 'create timeout');
+        prog?.update(45, await tText('Analyzing policy with on-device model…', lang, tx));
+
+        const prompt = `You are a medical-necessity reviewer. Using the data below, predict prior auth requirements and denial risk. Respond ONLY as compact JSON with keys: prior_auth_required (true/false), denial_risk (0-100 integer), docs_required (array of strings), gaps (array of strings), summary (string).
+CODES: ${codes}
+PAYER: ${payer}
+POLICY: ${policy}
+CLINICAL_NOTES: ${notes}`;
+        const txt = await withTimeout(s.prompt(prompt), 2500, 'prompt timeout');
+        try { payload = JSON.parse(String(txt)); } catch {}
+      } catch {}
+    }
+
+    if (!payload) {
+      prog?.update(65, await tText('Using heuristic fallback…', lang, tx));
+      const low = /not required|no pa|exempt/i.test(policy);
+      const high = /authorization required|precert|advanced imaging/i.test(policy);
+      const denial = high ? 72 : (low ? 18 : 45);
+      payload = {
+        prior_auth_required: !!high,
+        denial_risk: denial,
+        docs_required: ['Clinical indication', 'Imaging report', 'Provider note', 'Renal function if contrast'],
+        gaps: [],
+        summary: 'Heuristic estimate'
+      };
+    }
+
+    prog?.update(85, await tText('Formatting results…', lang, tx));
+
+    const score = Math.max(0, Math.min(100, parseInt(payload.denial_risk || 0)));
+    const priorLbl = await tText('Prior Auth likely:', lang, tx);
+    const yesLbl   = await tText('Yes', lang, tx);
+    const maybeLbl = await tText('Maybe/No', lang, tx);
+    const denialLbl= await tText('Denial risk:', lang, tx);
+    const docsLbl  = await tText('Docs:', lang, tx);
+    const gapsLbl  = await tText('Gaps:', lang, tx);
+    const sumLbl   = await tText(payload.summary || '', lang, tx);
+    const docsList = await tLines(payload.docs_required||[], lang, tx);
+    const gapsList = await tLines(payload.gaps||[], lang, tx);
+
+    const resultHTML = `<div class="surface">
+      <strong>${priorLbl}</strong> ${payload.prior_auth_required ? yesLbl : maybeLbl}<br/>
+      <strong>${denialLbl}</strong> ${score}/100 ${riskMeter(score)}
+      <div class="small"><strong>${docsLbl}</strong> ${docsList.join(' · ')}</div>
+      <div class="small"><strong>${gapsLbl}</strong> ${gapsList.join(' · ') || '—'}</div>
+      <div class="tiny muted">${sumLbl}</div>
+    </div>`;
+
+    prog?.done();
+    setTimeout(() => { out.innerHTML = resultHTML; if (typeof saveDraft === 'function') saveDraft(); }, 200);
+
+  } finally {
+    setBusy({ btnIds:['riskBtn','riskBtn2'], busy:false });
+  }
+}
+
+// ---------- PA Note ----------
 function noteStatusEl(){ return document.getElementById('noteStatus'); }
 function setNoteStatus(s){ const el = noteStatusEl(); if (el) el.textContent = s || ''; }
 
@@ -713,66 +1071,172 @@ function noteFields() {
   };
 }
 
-function syncNoteFromHome() {
-  setNoteStatus('Syncing from Home…');
-  const svc = (document.getElementById('aiLine')?.value || '').trim();
+// Cache English originals so switching languages is reversible
+async function cacheNoteEnglishIfMissing() {
+  const f = noteFields();
+  const cache = {
+    rationale: f.rationale.value,
+    history: f.history.value,
+    site: f.site.value,
+    final: f.final.value
+  };
+  const key = 'note_cache_en';
+  try {
+    const got = await chrome.storage.local.get(key);
+    if (!got[key] || (!got[key].rationale && !got[key].history && !got[key].site && !got[key].final)) {
+      await chrome.storage.local.set({ [key]: cache });
+    }
+  } catch {}
+}
+async function restoreNoteEnglish() {
+  const key = 'note_cache_en';
+  try {
+    const got = await chrome.storage.local.get(key);
+    const c = got[key];
+    if (!c) return false;
+    const f = noteFields();
+    if (c.rationale) f.rationale.value = c.rationale;
+    if (c.history)   f.history.value   = c.history;
+    if (c.site)      f.site.value      = c.site;
+    if (c.final)     f.final.value     = c.final;
+    return true;
+  } catch { return false; }
+}
+
+function getHomeContext() {
+  const svc   = (document.getElementById('aiLine')?.value || '').trim();
   const codes = (document.getElementById('cptInput')?.value || '').trim();
   const payer = (document.getElementById('payerInput')?.value || '').trim();
+  const policy= (document.getElementById('payerPolicy')?.value || '').trim();
+  const notes = (document.getElementById('clinicalNotes')?.value || '').trim();
+
+  const firstCode = pickFirstValidCodeFromInput();
+  let ruleText = '';
+  if (firstCode && rulesData && rulesData[firstCode] && payer) {
+    ruleText = normalizeRuleText(rulesData[firstCode][payer] || '');
+  }
+  return { svc, codes, payer, policy, notes, firstCode, ruleText };
+}
+
+async function syncNoteFromHome() {
   const f = noteFields();
-  if (svc)   f.service.value = svc;
-  if (codes) f.codes.value   = codes;
-  if (payer) f.payer.value   = payer;
-  setTimeout(()=>setNoteStatus('Synced.'), 200);
+  const ctx = getHomeContext();
+  const lang = getNoteLang();
+  const tx = await getTranslator(lang, 'en');
+
+  if (ctx.svc)   f.service.value = ctx.svc;
+  if (ctx.codes) f.codes.value   = ctx.codes;
+  if (ctx.payer) f.payer.value   = ctx.payer;
+
+  if (!f.rationale.value && (ctx.notes || ctx.ruleText)) {
+    const chunks = [];
+    if (ctx.notes)   chunks.push(ctx.notes);
+    if (ctx.ruleText) chunks.push(`Meets payer rule: ${ctx.ruleText}`);
+    f.rationale.value = sanitizeAI(chunks.join('\n\n'));
+  }
+  if (!f.history.value && ctx.notes) {
+    const lines = ctx.notes.split(/\n+/).filter(Boolean);
+    const keep  = lines.filter(l => /imaging|x-?ray|ct|mri|ultra|echo|prior|previous|visit|report|date/i.test(l));
+    f.history.value = sanitizeAI((keep.join('\n')) || ctx.notes);
+  }
+  if (!f.site.value) {
+    const siteHints = [];
+    if (/outpatient/i.test(ctx.policy)) siteHints.push('Outpatient');
+    if (/inpatient/i.test(ctx.policy))  siteHints.push('Inpatient');
+    if (/office|clinic/i.test(ctx.policy)) siteHints.push('Office/Clinic');
+    const modHints = ctx.codes && /(?:26|TC)(?:\D|$)/.test(ctx.codes) ? ' (modifiers present)' : '';
+    f.site.value = (siteHints.join(' / ') || 'Specify site of service and modifiers') + modHints;
+  }
+
+  f.rationale.value = await tText(f.rationale.value, lang, tx);
+  f.history.value   = await tText(f.history.value,   lang, tx);
+  f.site.value      = await tText(f.site.value,      lang, tx);
+
+  setNoteStatus('Synced.');
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
 async function generateNoteFields() {
   const lang = getNoteLang();
   const f = noteFields();
+  const ctx = getHomeContext();
+
+  if (!f.service.value && ctx.svc) f.service.value = ctx.svc;
+  if (!f.codes.value   && ctx.codes) f.codes.value = ctx.codes;
+  if (!f.payer.value   && ctx.payer) f.payer.value = ctx.payer;
+
   setNoteStatus('Generating field drafts…');
-  const ctx = {
-    service: f.service.value.trim() || '(describe)',
-    codes: f.codes.value.trim() || '(codes)',
-    payer: f.payer.value.trim() || '(payer)',
+
+  const schema = {
+    type: "object",
+    properties: {
+      medicalNecessity: { type: "string" },
+      historyImaging:   { type: "string" },
+      siteModifiers:    { type: "string" }
+    },
+    required: ["medicalNecessity","historyImaging","siteModifiers"]
   };
 
   let out = null;
+
   if ('LanguageModel' in self) {
     try {
-      const session = await withTimeout(LanguageModel.create(LM_OPTS(lang)), PROMPT_AI_DEADLINE_MS, 'create timeout');
-      const schema = {
-        type: "object",
-        properties: {
-          medicalNecessity: { type: "string" },
-          historyImaging: { type: "string" },
-          siteModifiers: { type: "string" }
-        },
-        required: ["medicalNecessity","historyImaging","siteModifiers"]
-      };
-      const prompt =
-`Given this context, draft concise content for each field (2–4 sentences each) in ${lang.toUpperCase()}.
-Context:
-- Service: ${ctx.service}
-- Codes: ${ctx.codes}
-- Payer: ${ctx.payer}
+      const s = await withTimeout(LanguageModel.create(LM_OPTS(lang)), PROMPT_AI_DEADLINE_MS, 'create timeout');
+      const prompt = `
+You are helping draft a concise, payer-ready prior authorization note in ${lang.toUpperCase()}.
+Use ONLY the facts provided. Be specific but brief (2–4 sentences per field). Avoid hallucinations.
 
-Return ONLY JSON with keys: medicalNecessity, historyImaging, siteModifiers.`;
-      const res = await withTimeout(session.prompt(prompt, { responseConstraint: schema }), PROMPT_AI_DEADLINE_MS, 'prompt timeout');
+CONTEXT
+Service: ${ctx.svc || f.service.value || '(describe)'}
+Codes: ${ctx.codes || f.codes.value || '(codes)'}
+Payer: ${ctx.payer || f.payer.value || '(payer)'}
+First code: ${ctx.firstCode || '(n/a)'}
+Payer rule (if any): ${ctx.ruleText || '(n/a)'}
+Payer policy (paste): ${ctx.policy || '(n/a)'}
+Clinical notes: ${ctx.notes || '(n/a)'}
+
+Return strict JSON with keys:
+- medicalNecessity
+- historyImaging
+- siteModifiers
+`;
+      const res = await withTimeout(s.prompt(prompt, { responseConstraint: schema }), PROMPT_AI_DEADLINE_MS, 'prompt timeout');
       out = typeof res === 'string' ? JSON.parse(res) : res;
-    } catch {}
+    } catch (e) {}
   }
+
   if (!out) {
+    const bulletsFromPolicy = (ctx.policy || '')
+      .split(/[\.\n]/).map(s=>s.trim()).filter(Boolean).slice(0,3)
+      .map(s=>'• ' + s).join('\n');
+
+    const hx = (ctx.notes || '')
+      .split(/\n+/).filter(Boolean).slice(0,4).join('\n');
+
+    let site = 'Specify site of service; include relevant modifiers';
+    if (/outpatient/i.test(ctx.policy)) site = 'Outpatient setting; include applicable modifiers';
+    if (/inpatient/i.test(ctx.policy))  site = 'Inpatient setting; include applicable modifiers';
+    if (/office|clinic/i.test(ctx.policy)) site = 'Office/Clinic setting; include applicable modifiers';
+
     out = {
-      medicalNecessity: 'Describe clinical need, symptoms, and failed conservative care.',
-      historyImaging: 'List relevant prior visits, imaging reports, and dates.',
-      siteModifiers: 'Specify site of service and applicable modifiers (e.g., -26/-TC).'
+      medicalNecessity: sanitizeAI(
+        [
+          'Symptoms and functional impact documented; failed conservative therapy as indicated.',
+          ctx.ruleText ? `Meets payer rule: ${ctx.ruleText}` : ''
+        ].filter(Boolean).join(' ')
+      ),
+      historyImaging: sanitizeAI(hx || (bulletsFromPolicy || 'Summarize prior visits, imaging, and dates.')),
+      siteModifiers: sanitizeAI(site)
     };
   }
 
-  f.rationale.value = sanitizeAI(out.medicalNecessity) || f.rationale.value;
-  f.history.value   = sanitizeAI(out.historyImaging)  || f.history.value;
-  f.site.value      = sanitizeAI(out.siteModifiers)   || f.site.value;
+  const tx = await getTranslator(lang, 'en');
+  f.rationale.value = await tText(out.medicalNecessity || f.rationale.value, lang, tx);
+  f.history.value   = await tText(out.historyImaging   || f.history.value,   lang, tx);
+  f.site.value      = await tText(out.siteModifiers    || f.site.value,      lang, tx);
 
   setNoteStatus('Fields filled.');
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
 async function polishNoteFields() {
@@ -796,6 +1260,7 @@ async function polishNoteFields() {
     el.value = sanitizeAI(polished);
   }
   setNoteStatus('Polished.');
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
 function assembleNote() {
@@ -827,6 +1292,7 @@ ${s || '(add details)'}
 `;
   f.final.value = assembled;
   setTimeout(()=>setNoteStatus('Assembled.'), 200);
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
 function copyAssembled() {
@@ -834,6 +1300,62 @@ function copyAssembled() {
   const txt = f.final.value || '';
   navigator.clipboard.writeText(txt).catch(()=>{});
   setNoteStatus('Copied to clipboard.');
+}
+
+// Translate existing PA Note fields when language changes
+async function onNoteLangChanged() {
+  const lang = getNoteLang();
+  const f = noteFields();
+
+  if (lang === 'en') {
+    const restored = await restoreNoteEnglish();
+    if (restored) setNoteStatus('Restored English.');
+    if (typeof saveDraft === 'function') saveDraft();
+    return;
+  }
+
+  await cacheNoteEnglishIfMissing();
+  const tx = await getTranslator(lang, 'en');
+  f.rationale.value = await tText(f.rationale.value, lang, tx);
+  f.history.value   = await tText(f.history.value,   lang, tx);
+  f.site.value      = await tText(f.site.value,      lang, tx);
+  if ((f.final.value || '').trim()) f.final.value = await tText(f.final.value, lang, tx);
+
+  setNoteStatus(`Translated to ${lang.toUpperCase()}.`);
+  if (typeof saveDraft === 'function') saveDraft();
+}
+
+// ---------- CLEAR buttons ----------
+function clearHomeFields() {
+  const ids = [
+    'cptInput','payerInput','payerPolicy','clinicalNotes','aiLine'
+  ];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  const clearHTML = (id) => { const el = document.getElementById(id); if (el) el.innerHTML = ''; };
+  const hideText  = (id) => { const el = document.getElementById(id); if (el){ el.textContent=''; el.style.display='none'; } };
+
+  clearHTML('suggestions');
+  clearHTML('result');
+  clearHTML('payerCompare');
+  hideText('snapshotOut');
+  hideText('policySummaryOut');
+  const risk = document.getElementById('riskOut'); if (risk){ risk.innerHTML=''; risk.style.display='none'; }
+  const bar = document.getElementById('snapshotBar'); if (bar) bar.style.display='none';
+  const chips = document.getElementById('attrChips'); if (chips) chips.innerHTML='';
+  const aiOut = document.getElementById('aiExtractOut'); if (aiOut) aiOut.textContent='';
+  const attach = document.getElementById('attachInput'); if (attach) attach.value='';
+  const attachList = document.getElementById('attachList'); if (attachList) attachList.innerHTML='';
+
+  if (typeof saveDraft === 'function') saveDraft();
+}
+async function clearNoteFields() {
+  const f = noteFields();
+  f.service.value=''; f.codes.value=''; f.payer.value='';
+  f.rationale.value=''; f.history.value=''; f.site.value=''; f.final.value='';
+  setNoteStatus('');
+  try { await chrome.storage.local.remove('note_cache_en'); } catch {}
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
 // ---------- Diagnostics ----------
@@ -854,7 +1376,6 @@ async function withDiagTimeout(promise, label) {
   const out = await Promise.race([promise, gate]).finally(()=>clearTimeout(t));
   return out;
 }
-
 async function testData() {
   if (!dataLoaded) return { status: 'fail', msg: 'Not loaded' };
   const nCodes = cptData.length;
@@ -896,7 +1417,6 @@ async function testTranslator() {
     return (out && out.toLowerCase() !== 'hello') ? { status: 'ok', msg: `en→es ok (${out})` } : { status: 'warn', msg: 'No change' };
   } catch (e) { return { status: 'warn', msg: e.message }; }
 }
-
 async function runDiagnostics() {
   const start = Date.now();
   diagLog('Running diagnostics…');
@@ -915,10 +1435,21 @@ async function runDiagnostics() {
 
   const tx = await testTranslator();
   diagSet('Translator', tx.status, tx.msg);
-  diagLog(`Translator: ${tx.status.toUpperCase()} — ${tx.msg}`);
-
   diagLog(`Diagnostics complete in ${Date.now() - start}ms`);
   return Date.now() - start;
+}
+
+// ---------- Re-translate on language changes ----------
+async function onPopupLangChanged() {
+  if ((document.getElementById('result')?.innerHTML || '').trim())    await doValidate();
+  if ((document.getElementById('snapshotOut')?.textContent || '').trim()) await generateCoverageSnapshot();
+  if ((document.getElementById('policySummaryOut')?.textContent || '').trim()) await summarizePolicy();
+  if ((document.getElementById('riskOut')?.innerHTML || '').trim())   await checkAuthRisk();
+  if ((document.getElementById('payerCompare')?.innerHTML || '').trim()) {
+    const code = pickFirstValidCodeFromInput();
+    if (code) await renderPayerCompare(code);
+  }
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
 // ---------- boot ----------
@@ -928,6 +1459,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupSuggestions();
   setupAttachmentsList();
   loadHistory();
+
+  // persistent popup state
+  wireAutosave();
+  await autoRestore();
 
   document.getElementById("validateBtn")?.addEventListener("click", () => { doValidate(); });
   const form = document.getElementById("ai-extract-form");
@@ -941,7 +1476,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (e.key === "Enter") { e.preventDefault(); validateBtn.click(); }
     });
   }
-  
   const aiLine = document.getElementById("aiLine");
   const aiBtn = document.getElementById("aiExtractBtn");
   if (aiLine && aiBtn) {
@@ -956,11 +1490,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (txt.trim()) navigator.clipboard.writeText(txt).catch(()=>{});
   });
 
+  document.getElementById('riskBtn')?.addEventListener('click', checkAuthRisk);
+  document.getElementById('riskBtn2')?.addEventListener('click', checkAuthRisk);
+  document.getElementById('summarizePolicyBtn')?.addEventListener('click', summarizePolicy);
+  document.getElementById('loadDemoBtn')?.addEventListener('click', loadDemoData);
+  document.getElementById('pasteCapturedBtn')?.addEventListener('click', pasteFromCapture);
+
   document.getElementById('syncNoteBtn')?.addEventListener('click', syncNoteFromHome);
   document.getElementById('genNoteFieldsBtn')?.addEventListener('click', generateNoteFields);
   document.getElementById('polishNoteFieldsBtn')?.addEventListener('click', polishNoteFields);
   document.getElementById('assembleNoteBtn')?.addEventListener('click', assembleNote);
   document.getElementById('copyAssembledBtn')?.addEventListener('click', copyAssembled);
+
+  document.getElementById('clearHistoryBtn')?.addEventListener('click', clearHistory);
+  document.getElementById('clearHomeBtn')?.addEventListener('click', clearHomeFields);
+  document.getElementById('clearNoteBtn')?.addEventListener('click', clearNoteFields);
 
   document.getElementById('runDiagBtn')?.addEventListener('click', async () => {
     const btn = document.getElementById('runDiagBtn');
@@ -969,10 +1513,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     btn.disabled = false;
   });
 
-  document.getElementById('detachBtn')?.addEventListener('click', async () => {
-    const url = chrome.runtime.getURL('popup.html');
-    await chrome.windows.create({ url, type: 'popup', focused: true, width: 820, height: 900 });
-    window.close();
-  });
+  document.getElementById('popupLang')?.addEventListener('change', onPopupLangChanged);
+  document.getElementById('noteLang')?.addEventListener('change', onNoteLangChanged);
 });
-

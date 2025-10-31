@@ -1,0 +1,1 @@
+chrome.runtime.onMessage.addListener((msg,s,r)=>{if(msg?.type==='codesure_capture'&&typeof msg.text==='string'){chrome.storage.local.set({payerPolicyCaptured: msg.text.slice(0,8000)},()=>r({ok:true}));return true;}});

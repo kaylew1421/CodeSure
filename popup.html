@@ -5,6 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CodeSure – CPT Code Validator</title>
   <link rel="stylesheet" href="src/style.css" />
+  <!-- lightweight UI affordances -->
+  <style>
+    .spinner{
+      display:inline-block;width:14px;height:14px;border-radius:50%;
+      border:2px solid rgba(0,0,0,.15);border-top-color:rgba(0,0,0,.6);
+      animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px
+    }
+    @media (prefers-color-scheme: dark){
+      .spinner{border-color:rgba(255,255,255,.25);border-top-color:rgba(255,255,255,.8)}
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* determinate progress bar */
+    .progress{height:8px;border-radius:6px;overflow:hidden;background:rgba(0,0,0,.12)}
+    .progress .bar{height:100%;width:0%;
+      background:linear-gradient(90deg,#4caf50,#ffeb3b,#f44336);
+      transition:width .2s ease}
+    @media (prefers-color-scheme: dark){
+      .progress{background:rgba(255,255,255,.18)}
+    }
+  </style>
 </head>
 <body class="is-popup">
   <div class="app-container">
@@ -18,9 +39,7 @@
           <span class="muted tiny">CPT Code Validator</span>
         </div>
       </div>
-      <div class="actions">
-        <button id="detachBtn" class="btn ghost slim" title="Open persistent window">Open window</button>
-      </div>
+      <!-- (no actions—the old “Open window” button is removed) -->
     </header>
 
     <main class="main-content">
@@ -75,8 +94,9 @@
       </select>
     </div>
 
-    <div class="col-span-2">
-      <button id="validateBtn" type="button" class="btn primary w-full">Validate</button>
+    <div class="col-span-2 row gap">
+      <button id="validateBtn" type="button" class="btn primary">Validate</button>
+      <button id="clearHomeBtn" type="button" class="btn ghost">Clear</button>
     </div>
   </div>
 
@@ -87,10 +107,31 @@
   <div id="snapshotBar" class="row gap" style="display:none; margin-top:8px;">
     <button id="snapshotBtn" class="btn ghost">Generate Coverage Snapshot</button>
     <button id="snapshotCopyBtn" class="btn ghost">Copy</button>
+    <button id="riskBtn" class="btn ghost">Check Auth Risk</button>
   </div>
+  <div id="riskOut" class="hint" style="margin-top:6px; display:none;" aria-live="polite"></div>
   <pre id="snapshotOut" class="mono small block surface" style="display:none;" aria-live="polite"></pre>
 
-  <h3>Validation History</h3>
+  <section class="surface stack" style="margin-top:8px;">
+    <h3>Additional Context</h3>
+    <div class="grid-1 gap">
+      <label>Payer Policy (paste or capture)<textarea id="payerPolicy" rows="5" placeholder="Paste payer policy text here…"></textarea></label>
+      <label>Clinical Notes (de-identified)<textarea id="clinicalNotes" rows="5" placeholder="Paste brief clinical notes…"></textarea></label>
+    </div>
+    <div class="row gap wrap">
+      <button id="pasteCapturedBtn" class="btn ghost">Paste From Capture</button>
+      <button id="summarizePolicyBtn" class="btn ghost">Summarize Policy</button>
+      <button id="loadDemoBtn" class="btn ghost">Load Demo Data</button>
+      <button id="riskBtn2" class="btn primary">Check Auth Risk</button>
+    </div>
+    <pre id="policySummaryOut" class="mono small block surface" style="display:none;" aria-live="polite"></pre>
+  </section>
+
+  <!-- History header + clear button -->
+  <div class="row" style="align-items:center; justify-content:space-between; margin-top:12px;">
+    <h3 style="margin:0;">Validation History</h3>
+    <button id="clearHistoryBtn" class="btn ghost slim" title="Remove all saved history">Clear History</button>
+  </div>
   <div id="history" class="surface" aria-live="polite"></div>
 
   <!-- AI Assist -->
@@ -146,6 +187,7 @@
           <button id="polishNoteFieldsBtn" type="button" class="btn ghost">Polish</button>
           <button id="assembleNoteBtn" type="button" class="btn primary">Assemble</button>
           <button id="copyAssembledBtn" type="button" class="btn ghost">Copy</button>
+          <button id="clearNoteBtn" type="button" class="btn ghost">Clear</button>
           <span id="noteStatus" class="hint"></span>
         </div>
 
